@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc:*)",
+      "Bash(npm start)",
+      "Bash(npm test:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm uninstall:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\mnt\\c\\Users\\maito\\roomsnap\\RoomSnapARExpo"
+    ]
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "expo": {
+    "name": "RoomSnap AR",
+    "slug": "roomsnap-ar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "roomsnap",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.roomsnap.ar",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "RoomSnap AR uses your camera for AR room measurements and furniture placement.",
+        "NSMicrophoneUsageDescription": "RoomSnap AR uses your microphone for voice commands.",
+        "NSPhotoLibraryUsageDescription": "RoomSnap AR saves screenshots and floor plans to your photo library.",
+        "NSLocationWhenInUseUsageDescription": "RoomSnap AR uses your location to improve AR accuracy and save project locations.",
+        "NSFaceIDUsageDescription": "RoomSnap AR uses Face ID for secure authentication.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "associatedDomains": ["applinks:roomsnap.app"],
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          }
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.roomsnap.ar",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "VIBRATE",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "RECEIVE_BOOT_COMPLETED",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "roomsnap.app",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RoomSnap AR to access your camera for AR measurements.",
+          "microphonePermission": "Allow RoomSnap AR to access your microphone for voice commands.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow RoomSnap AR to use your location for AR accuracy."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow RoomSnap AR to use Face ID for secure login."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2196F3",
+          "sounds": []
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "8f89bc6b-2b43-4444-a66d-3c3ddb4883f6"
+      },
+      "stripePublishableKey": "${STRIPE_PUBLISHABLE_KEY}",
+      "stripeMerchantId": "merchant.com.roomsnap.app",
+      "apiBaseUrl": "${API_BASE_URL}",
+      "urlScheme": "roomsnap"
+    },
+    "owner": "roomsnap",
+    "updates": {
+      "url": "https://u.expo.dev/8f89bc6b-2b43-4444-a66d-3c3ddb4883f6"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
