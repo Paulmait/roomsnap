@@ -30,16 +30,35 @@ interface AuditLog {
   metadata?: any;
 }
 
+interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+}
+
+interface RateLimitEntry {
+  count: number;
+  windowStart: number;
+}
+
 export class SecurityService {
   private static instance: SecurityService;
   private readonly MASTER_KEY = 'roomsnap_master_key';
   private readonly SESSION_KEY = 'roomsnap_session';
   private readonly AUDIT_KEY = 'roomsnap_audit';
   private readonly CONFIG_KEY = 'roomsnap_security_config';
-  
+
   private sessionKey: string | null = null;
   private lastActivity: Date = new Date();
   private loginAttempts: number = 0;
+
+  // Client-side rate limiting
+  private rateLimitStore: Map<string, RateLimitEntry> = new Map();
+  private readonly rateLimitConfigs: { [key: string]: RateLimitConfig } = {
+    auth: { maxRequests: 5, windowMs: 60000 },        // 5 auth attempts per minute
+    api: { maxRequests: 100, windowMs: 60000 },       // 100 API calls per minute
+    upload: { maxRequests: 10, windowMs: 60000 },     // 10 uploads per minute
+    payment: { maxRequests: 3, windowMs: 60000 },     // 3 payment attempts per minute
+  };
   
   // Security headers for API calls
   static readonly SECURITY_HEADERS = {
@@ -87,7 +106,7 @@ export class SecurityService {
       const key = await this.getDerivedKey();
       
       // Encrypt data
-      const encrypted = await this.aesEncrypt(data, key, ivHex);
+      const encrypted = await this.symmetricEncrypt(data, key, ivHex);
       
       // Generate MAC for integrity
       const mac = await Crypto.digestStringAsync(
@@ -134,7 +153,7 @@ export class SecurityService {
       }
       
       // Decrypt data
-      const decrypted = await this.aesDecrypt(
+      const decrypted = await this.symmetricDecrypt(
         encryptedData.data,
         key,
         encryptedData.iv
@@ -418,31 +437,110 @@ export class SecurityService {
 
   async performSecurityCheck(): Promise<{ passed: boolean; issues: string[] }> {
     const issues: string[] = [];
-    
+
     // Check jailbreak/root
     if (await this.isDeviceCompromised()) {
       issues.push('Device appears to be jailbroken/rooted');
     }
-    
+
     // Check session validity
-    if (!await this.validateSession()) {
+    if (!(await this.validateSession())) {
       issues.push('Session expired or invalid');
     }
-    
+
     // Check for debugger
     if (this.isDebuggerAttached()) {
       issues.push('Debugger detected');
     }
-    
+
     // Check SSL pinning (in production)
     // if (!await this.verifyCertificatePinning()) {
     //   issues.push('SSL certificate verification failed');
     // }
-    
+
     return {
       passed: issues.length === 0,
       issues,
     };
+  }
+
+  /**
+   * Check if a request type is rate limited.
+   * @param type - The type of request (auth, api, upload, payment)
+   * @param identifier - Optional unique identifier (e.g., user ID, IP)
+   * @returns Object with allowed status and remaining requests
+   */
+  checkRateLimit(
+    type: string,
+    identifier: string = 'default'
+  ): { allowed: boolean; remaining: number; resetInMs: number } {
+    const config = this.rateLimitConfigs[type] || this.rateLimitConfigs.api;
+    const key = `${type}:${identifier}`;
+    const now = Date.now();
+
+    let entry = this.rateLimitStore.get(key);
+
+    // Reset window if expired
+    if (!entry || now - entry.windowStart >= config.windowMs) {
+      entry = { count: 0, windowStart: now };
+      this.rateLimitStore.set(key, entry);
+    }
+
+    const remaining = Math.max(0, config.maxRequests - entry.count);
+    const resetInMs = config.windowMs - (now - entry.windowStart);
+
+    return {
+      allowed: entry.count < config.maxRequests,
+      remaining,
+      resetInMs,
+    };
+  }
+
+  /**
+   * Record a request for rate limiting purposes.
+   * @param type - The type of request
+   * @param identifier - Optional unique identifier
+   * @returns Whether the request was allowed
+   */
+  async recordRequest(type: string, identifier: string = 'default'): Promise<boolean> {
+    const { allowed } = this.checkRateLimit(type, identifier);
+
+    if (!allowed) {
+      await this.auditLog('rate_limit_exceeded', false, { type, identifier });
+      return false;
+    }
+
+    const key = `${type}:${identifier}`;
+    const entry = this.rateLimitStore.get(key);
+
+    if (entry) {
+      entry.count++;
+      this.rateLimitStore.set(key, entry);
+    }
+
+    return true;
+  }
+
+  /**
+   * Reset rate limit for a specific type and identifier.
+   */
+  resetRateLimit(type: string, identifier: string = 'default'): void {
+    const key = `${type}:${identifier}`;
+    this.rateLimitStore.delete(key);
+  }
+
+  /**
+   * Get rate limit status for display to user.
+   */
+  getRateLimitStatus(type: string, identifier: string = 'default'): string {
+    const { allowed, remaining, resetInMs } = this.checkRateLimit(type, identifier);
+
+    if (allowed) {
+      return `${remaining} requests remaining`;
+    }
+
+    const resetInSeconds = Math.ceil(resetInMs / 1000);
+    return `Rate limited. Try again in ${resetInSeconds} seconds.`;
   }
 
   private async getOrCreateMasterKey(): Promise<string> {
@@ -502,9 +600,71 @@ export class SecurityService {
   }
 
   private async authenticateWithPIN(): Promise<boolean> {
-    // Implement PIN authentication
-    // This would typically show a PIN input dialog
-    return true;
+    // PIN authentication requires user interaction through a UI component
+    // This method should be called from a component that displays a PIN input dialog
+    // The actual PIN verification is delegated to the component layer
+
+    // For security, never auto-approve - require explicit PIN entry
+    // The calling component must use verifyPIN() after collecting the PIN
+    await this.auditLog('pin_auth_fallback_requested', true);
+
+    // Return false to indicate PIN entry is required
+    // The UI layer should prompt the user and call verifyPIN()
+    return false;
+  }
+
+  async verifyPIN(enteredPIN: string): Promise<boolean> {
+    try {
+      // Retrieve stored PIN hash
+      const storedPINData = await this.secureRetrieve('user_pin');
+
+      if (!storedPINData) {
+        // No PIN set up - this is a security error
+        await this.auditLog('pin_not_configured', false);
+        return false;
+      }
+
+      const { hash, salt } = JSON.parse(storedPINData);
+
+      // Verify the entered PIN
+      const isValid = await this.verifyPassword(enteredPIN, hash, salt);
+
+      if (isValid) {
+        await this.auditLog('pin_auth_success', true);
+        this.loginAttempts = 0;
+        return true;
+      } else {
+        this.loginAttempts++;
+        await this.auditLog('pin_auth_failed', false, { attempts: this.loginAttempts });
+        return false;
+      }
+    } catch (error) {
+      console.error('PIN verification failed:', error);
+      await this.auditLog('pin_verification_error', false, { error });
+      return false;
+    }
+  }
+
+  async setupPIN(pin: string): Promise<boolean> {
+    try {
+      // Validate PIN format (4-6 digits)
+      if (!/^\d{4,6}$/.test(pin)) {
+        throw new Error('PIN must be 4-6 digits');
+      }
+
+      // Hash the PIN
+      const { hash, salt } = await this.hashPassword(pin);
+
+      // Store securely
+      await this.secureStore('user_pin', JSON.stringify({ hash, salt }));
+
+      await this.auditLog('pin_configured', true);
+      return true;
+    } catch (error) {
+      console.error('PIN setup failed:', error);
+      await this.auditLog('pin_setup_failed', false, { error });
+      return false;
+    }
   }
 
   private async getDeviceId(): Promise<string> {
@@ -550,9 +710,26 @@ export class SecurityService {
       .join('');
   }
 
-  private async aesEncrypt(data: string, key: string, iv: string): Promise<string> {
-    // XOR-based encryption with key derivation for React Native
-    // Uses multiple rounds of key-derived XOR for security
+  /**
+   * Symmetric encryption using multi-round XOR with derived key bytes.
+   *
+   * NOTE: This is NOT true AES encryption. React Native/Expo does not provide
+   * native AES-256 encryption. This implementation uses:
+   * - SHA-256 key derivation from master key + IV
+   * - Multi-round XOR with key rotation for obfuscation
+   * - HMAC-style MAC for integrity verification (in encrypt/decrypt wrappers)
+   *
+   * Security properties:
+   * - Data is obfuscated using cryptographically derived key material
+   * - IV prevents identical plaintexts from producing identical ciphertexts
+   * - MAC verification prevents tampering
+   * - 24-hour timestamp validation prevents replay attacks
+   *
+   * For production apps requiring certified encryption, consider:
+   * - react-native-quick-crypto (native AES-256-GCM)
+   * - Server-side encryption for sensitive data
+   */
+  private async symmetricEncrypt(data: string, key: string, iv: string): Promise<string> {
     const keyBytes = await this.deriveKeyBytes(key, iv);
     const dataBytes = this.stringToBytes(data);
     const encryptedBytes = new Uint8Array(dataBytes.length);
@@ -568,8 +745,11 @@ export class SecurityService {
     return this.bytesToHex(encryptedBytes);
   }
 
-  private async aesDecrypt(encrypted: string, key: string, iv: string): Promise<string> {
-    // Reverse the XOR-based encryption
+  /**
+   * Symmetric decryption - reverses the symmetricEncrypt operation.
+   * See symmetricEncrypt for security notes.
+   */
+  private async symmetricDecrypt(encrypted: string, key: string, iv: string): Promise<string> {
     const keyBytes = await this.deriveKeyBytes(key, iv);
     const encryptedBytes = this.hexToBytes(encrypted);
     const decryptedBytes = new Uint8Array(encryptedBytes.length);
