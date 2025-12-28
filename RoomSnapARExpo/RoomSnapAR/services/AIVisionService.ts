@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { Camera } from 'expo-camera';
 import { Platform } from 'react-native';
+import { ConfigService } from './ConfigService';
 
 interface FurnitureDetection {
   type: string;
@@ -24,13 +25,38 @@ interface RoomAnalysis {
 export class AIVisionService {
   private static instance: AIVisionService;
   private apiKey?: string;
+  private openaiKey?: string;
   private modelType: 'claude' | 'gpt4v' | 'local' = 'local';
-  
+  private configService = ConfigService.getInstance();
+
+  private constructor() {
+    // Auto-initialize from environment variables
+    this.initializeFromEnv();
+  }
+
   static getInstance(): AIVisionService {
     if (!AIVisionService.instance) {
       AIVisionService.instance = new AIVisionService();
     }
     return AIVisionService.instance;
+  }
+
+  private initializeFromEnv(): void {
+    const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+    const openaiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
+
+    if (anthropicKey && anthropicKey.startsWith('sk-ant-')) {
+      this.apiKey = anthropicKey;
+      this.modelType = 'claude';
+      console.log('AI Vision: Claude API configured');
+    } else if (openaiKey && openaiKey.startsWith('sk-')) {
+      this.apiKey = openaiKey;
+      this.modelType = 'gpt4v';
+      console.log('AI Vision: OpenAI GPT-4V configured');
+    } else {
+      this.modelType = 'local';
+      console.log('AI Vision: Using local analysis (no API key configured)');
+    }
   }
 
   setAPIKey(key: string, type: 'claude' | 'gpt4v') {
@@ -67,18 +93,82 @@ export class AIVisionService {
   }
 
   private async analyzeWithClaude(base64Image: string): Promise<RoomAnalysis> {
-    // Claude Vision API integration
-    const prompt = `Analyze this room image and identify:
-    1. Room type (living room, bedroom, etc.)
-    2. Visible furniture with estimated dimensions
-    3. Room dimensions estimate
-    4. Lighting conditions
-    5. Layout improvement suggestions
-    
-    Return as structured JSON.`;
+    if (!this.apiKey) {
+      return this.localAnalysis('');
+    }
 
-    // Placeholder for actual API call
-    return this.localAnalysis('');
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: 'image/jpeg',
+                    data: base64Image,
+                  },
+                },
+                {
+                  type: 'text',
+                  text: `Analyze this room image for an AR measurement app. Return ONLY valid JSON with this exact structure:
+{
+  "roomType": "Living Room" | "Bedroom" | "Kitchen" | "Office" | "Bathroom" | "Dining Room",
+  "dimensions": { "width": <cm>, "height": <cm>, "depth": <cm> },
+  "furniture": [
+    {
+      "type": "<furniture name>",
+      "confidence": <0.0-1.0>,
+      "position": { "x": <0.0-1.0>, "y": <0.0-1.0> },
+      "suggestedDimensions": { "width": <cm>, "height": <cm>, "depth": <cm> },
+      "material": "Wood" | "Metal" | "Fabric" | "Glass" | "Plastic",
+      "estimatedCost": { "min": <USD>, "max": <USD>, "currency": "USD" }
+    }
+  ],
+  "lighting": "natural" | "artificial" | "mixed",
+  "suggestions": ["<suggestion 1>", "<suggestion 2>", "<suggestion 3>"],
+  "floorArea": <m²>,
+  "wallArea": <m²>
+}
+
+Estimate dimensions based on standard furniture sizes and room proportions visible in the image.`,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Claude API error:', response.status, errorData);
+        return this.localAnalysis('');
+      }
+
+      const data = await response.json();
+      const textContent = data.content?.find((c: any) => c.type === 'text');
+
+      if (!textContent?.text) {
+        console.error('No text content in Claude response');
+        return this.localAnalysis('');
+      }
+
+      return this.parseAIResponse(textContent.text);
+    } catch (error) {
+      console.error('Claude API request failed:', error);
+      return this.localAnalysis('');
+    }
   }
 
   private async analyzeWithGPT4V(base64Image: string): Promise<RoomAnalysis> {
@@ -126,8 +216,43 @@ export class AIVisionService {
 
   private parseAIResponse(response: string): RoomAnalysis {
     try {
+      // Try direct JSON parse first
       return JSON.parse(response);
     } catch {
+      // Try to extract JSON from the response (in case of markdown code blocks)
+      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+                        response.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        try {
+          const jsonStr = jsonMatch[1] || jsonMatch[0];
+          const parsed = JSON.parse(jsonStr);
+
+          // Validate required fields exist
+          if (parsed.roomType && parsed.dimensions && Array.isArray(parsed.furniture)) {
+            return {
+              roomType: parsed.roomType,
+              dimensions: parsed.dimensions,
+              furniture: parsed.furniture.map((f: any) => ({
+                type: f.type || 'Unknown',
+                confidence: f.confidence || 0.7,
+                position: f.position || { x: 0.5, y: 0.5 },
+                suggestedDimensions: f.suggestedDimensions || { width: 100, height: 100, depth: 100 },
+                material: f.material,
+                estimatedCost: f.estimatedCost,
+              })),
+              lighting: parsed.lighting || 'mixed',
+              suggestions: parsed.suggestions || [],
+              floorArea: parsed.floorArea || 0,
+              wallArea: parsed.wallArea || 0,
+            };
+          }
+        } catch {
+          // Fall through to local analysis
+        }
+      }
+
+      console.warn('Failed to parse AI response, using local analysis');
       return this.localAnalysis('');
     }
   }

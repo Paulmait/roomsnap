@@ -57,13 +57,13 @@ export class ConfigService {
 
     return {
       stripe: {
-        publishableKey: this.getEnvVar('STRIPE_PUBLISHABLE_KEY', extra.stripePublishableKey, 'pk_test_placeholder'),
+        publishableKey: this.getEnvVar('EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY', extra.stripePublishableKey, 'pk_test_placeholder'),
         merchantId: this.getEnvVar('STRIPE_MERCHANT_ID', extra.stripeMerchantId, 'merchant.com.roomsnap.app'),
         urlScheme: extra.urlScheme || 'roomsnap'
       },
       api: {
-        baseUrl: this.getEnvVar('API_BASE_URL', extra.apiBaseUrl, 'https://api.roomsnap.app/v1'),
-        apiKey: this.getEnvVar('API_KEY', extra.apiKey, ''),
+        baseUrl: this.getEnvVar('EXPO_PUBLIC_API_BASE_URL', extra.apiBaseUrl, 'https://api.roomsnap.app/v1'),
+        apiKey: this.getEnvVar('EXPO_PUBLIC_API_KEY', extra.apiKey, ''),
         timeout: 30000
       },
       push: {
@@ -73,9 +73,9 @@ export class ConfigService {
         apnsTeamId: this.getEnvVar('APNS_TEAM_ID', extra.apnsTeamId, '')
       },
       analytics: {
-        googleAnalyticsId: this.getEnvVar('GOOGLE_ANALYTICS_ID', extra.googleAnalyticsId, ''),
-        mixpanelToken: this.getEnvVar('MIXPANEL_TOKEN', extra.mixpanelToken, ''),
-        amplitudeApiKey: this.getEnvVar('AMPLITUDE_API_KEY', extra.amplitudeApiKey, '')
+        googleAnalyticsId: this.getEnvVar('EXPO_PUBLIC_GOOGLE_ANALYTICS_ID', extra.googleAnalyticsId, ''),
+        mixpanelToken: this.getEnvVar('EXPO_PUBLIC_MIXPANEL_TOKEN', extra.mixpanelToken, ''),
+        amplitudeApiKey: this.getEnvVar('EXPO_PUBLIC_AMPLITUDE_API_KEY', extra.amplitudeApiKey, '')
       },
       security: {
         jwtSecret: this.getEnvVar('JWT_SECRET', extra.jwtSecret, 'default_jwt_secret_change_in_production'),

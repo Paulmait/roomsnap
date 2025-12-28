@@ -12,7 +12,6 @@ export default function HomeScreen() {
       style={styles.container}
       accessible={true}
       accessibilityLabel="RoomSnap AR Home Screen"
-      accessibilityRole="main"
     >
       <Text
         style={styles.title}
@@ -21,34 +20,34 @@ export default function HomeScreen() {
       >
         RoomSnapAR
       </Text>
-      <View style={styles.row} accessibilityRole="menubar">
+      <View style={styles.row} accessibilityRole="toolbar">
         <FloatingButton
           icon="ruler"
           label="Measure"
-          onPress={() => navigation.navigate('measure')}
+          onPress={() => navigation.navigate('ARMeasure')}
           accessibilityLabel="Measure room dimensions"
           accessibilityHint="Opens AR camera to measure distances between points"
         />
         <FloatingButton
           icon="cube-outline"
           label="Place Box"
-          onPress={() => navigation.navigate('place')}
+          onPress={() => navigation.navigate('PlaceBox')}
           accessibilityLabel="Place virtual furniture"
           accessibilityHint="Opens AR view to place and resize 3D objects"
         />
       </View>
-      <View style={styles.row} accessibilityRole="menubar">
+      <View style={styles.row} accessibilityRole="toolbar">
         <FloatingButton
           icon="export-variant"
           label="Export"
-          onPress={() => navigation.navigate('export')}
+          onPress={() => navigation.navigate('ExportPlan')}
           accessibilityLabel="Export floor plan"
           accessibilityHint="Export your measurements as PDF or share with others"
         />
         <FloatingButton
           icon="content-save"
           label="Save"
-          onPress={() => navigation.navigate('save')}
+          onPress={() => navigation.navigate('SavePlan')}
           accessibilityLabel="Save current session"
           accessibilityHint="Save your measurements and furniture layout for later"
         />

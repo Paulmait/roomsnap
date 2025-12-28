@@ -668,6 +668,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
+  loadingText: {
+    color: '#FFF',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
   retryButton: {
     marginTop: 20,
     backgroundColor: '#2196F3',

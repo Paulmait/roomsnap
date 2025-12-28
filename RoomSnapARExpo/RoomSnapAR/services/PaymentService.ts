@@ -61,16 +61,16 @@ export class PaymentService {
   private securityService = SecurityService.getInstance();
   private authService = AuthService.getInstance();
   
-  // Stripe configuration (in production, these would be environment variables)
+  // Stripe configuration (loaded from environment variables)
   private stripeConfig: StripeConfig = {
-    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder',
+    publishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder',
     merchantId: process.env.STRIPE_MERCHANT_ID || 'merchant.com.roomsnap.app',
     urlScheme: 'roomsnap',
     companyName: 'RoomSnap AR'
   };
 
-  // API endpoints (in production, these would point to your backend)
-  private readonly API_BASE_URL = process.env.API_BASE_URL || 'https://api.roomsnap.app/v1';
+  // API endpoints
+  private readonly API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api.roomsnap.app/v1';
   private readonly endpoints = {
     createPaymentIntent: `${this.API_BASE_URL}/payments/create-intent`,
     confirmPayment: `${this.API_BASE_URL}/payments/confirm`,
