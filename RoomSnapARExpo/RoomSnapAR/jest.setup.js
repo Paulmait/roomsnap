@@ -1,9 +1,34 @@
 // jest.setup.js - Setup for Jest with React Native
 
+// Define __DEV__ globally for React Native
+global.__DEV__ = true;
+
 // Prevent react-native setup from redefining window
 if (typeof window === 'undefined') {
   global.window = {};
 }
+
+// Mock expo-localization
+jest.mock('expo-localization', () => ({
+  getLocales: jest.fn(() => [{ languageCode: 'en', regionCode: 'US' }]),
+  getCalendars: jest.fn(() => [{ calendar: 'gregorian' }]),
+  locale: 'en-US',
+  locales: ['en-US'],
+  timezone: 'America/New_York',
+  isRTL: false,
+}));
+
+// Mock expo-modules-core
+jest.mock('expo-modules-core', () => ({
+  requireNativeModule: jest.fn(() => ({})),
+  requireNativeViewManager: jest.fn(() => 'View'),
+  EventEmitter: jest.fn(() => ({
+    addListener: jest.fn(),
+    removeListeners: jest.fn(),
+  })),
+  NativeModulesProxy: {},
+  Platform: { OS: 'ios' },
+}));
 
 // Mock expo-camera
 jest.mock('expo-camera', () => ({
