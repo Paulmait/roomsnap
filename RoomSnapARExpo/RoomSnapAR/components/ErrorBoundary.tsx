@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sentry from '@sentry/react-native';
 
 interface Props {
   children: ReactNode;
@@ -49,18 +50,24 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   logErrorToService = (error: Error, errorInfo: any) => {
-    // Implement crash reporting here
-    // Example: Sentry.captureException(error, { extra: errorInfo });
-    
-    // For now, just log to console
-    const errorData = {
-      message: error.message,
-      stack: error.stack,
-      componentStack: errorInfo?.componentStack,
-      timestamp: new Date().toISOString(),
-    };
-    
-    console.log('Error logged:', errorData);
+    // Send to Sentry crash reporting
+    Sentry.withScope((scope) => {
+      scope.setExtra('componentStack', errorInfo?.componentStack);
+      scope.setExtra('errorCount', this.state.errorCount);
+      scope.setTag('errorBoundary', 'true');
+      Sentry.captureException(error);
+    });
+
+    // Also log locally for debugging
+    if (__DEV__) {
+      const errorData = {
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo?.componentStack,
+        timestamp: new Date().toISOString(),
+      };
+      console.log('Error logged:', errorData);
+    }
   };
 
   handleReset = () => {
